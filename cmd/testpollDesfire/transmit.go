@@ -19,7 +19,7 @@ func Transmit(s io.ReadWriter, in []byte) ([]byte, error) {
 		return nil, fmt.Errorf("error writing to serial port: %v", err)
 	}
 
-	for range make([]int, 10) {
+	for range make([]int, 30) {
 		n3, err := s.Read(buff)
 		if err != nil {
 			fmt.Printf("error reading from serial port: %v\n", err)

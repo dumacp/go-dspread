@@ -1,0 +1,11 @@
+--2024-09-19 22:21:51--  https://gitlab.com/dspread/LinuxSDK/-/raw/master/Libs/libdspreadsdk.a?ref_type=heads
+Resolving gitlab.com (gitlab.com)... 172.65.251.78, 2606:4700:90:0:f22e:fbec:5bed:a9b9
+Connecting to gitlab.com (gitlab.com)|172.65.251.78|:443... connected.
+HTTP request sent, awaiting response... 200 OK
+Length: 256778 (251K) [application/octet-stream]
+Saving to: ‘libdspreadsdk.a?ref_type=heads’
+
+libdspreadsdk.a?ref_type=heads                         0%[                                                                                                                       ]       0  --.-KB/s               libdspreadsdk.a?ref_type=heads                        96%[==================================================================================================================>    ] 242.67K  1.15MB/s               libdspreadsdk.a?ref_type=heads                       100%[======================================================================================================================>] 250.76K  1.18MB/s    in 0.2s    
+
+2024-09-19 22:21:52 (1.18 MB/s) - ‘libdspreadsdk.a?ref_type=heads’ saved [256778/256778]
+

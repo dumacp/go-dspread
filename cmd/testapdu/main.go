@@ -33,6 +33,20 @@ func main() {
 	// defer close serial port
 	defer serialPort.Close()
 
+	// // setBuzzer
+	// buzzer, err := cgo.SetBuzzerStatus(0x0E)
+	// if err != nil {
+	// 	log.Println(err)
+	// 	return
+	// }
+
+	// if _, err := Transmit(serialPort, buzzer); err != nil {
+	// 	log.Println(err)
+	// 	return
+	// }
+
+	// fmt.Printf("buzzer: %X\n", buzzer)
+
 	cmdid := func() int {
 		c, err := cgo.GetCmdId()
 		if err != nil {
@@ -140,11 +154,18 @@ func main() {
 		s, _ := cgo.Get("mifare_cardUid")
 		return s
 	}())
-	log.Printf("mifare ATR: %X\n", func() []byte {
+	log.Printf("mifare ATQA: %X\n", func() []byte {
 
+		// s, _ := cgo.Get("mifare_ATQA")
 		s, _ := cgo.Get("mifare_ATQA")
 		return s
 	}())
+	// log.Printf("mifare ATS: %X\n", func() []byte {
+
+	// 	// s, _ := cgo.Get("mifare_ATQA")
+	// 	s, _ := cgo.Get("mifare_cardAts")
+	// 	return s
+	// }())
 
 	// Send APDU command
 	apdu := []byte{0x70, 0x00, 0x40, 0x00}

@@ -35,15 +35,15 @@ int packPosInfo(char *out);                                   // get pos infomat
 /** int packSwipeIc(int tradeType,int amount, int cashback,char* tradeTime, char* tradeCurrencyCode,int timeout,char *out);   //if IC card,then return transaction result*/ /**/
 
 /**/
-int packQueryLatestCmdResult(char *out);                      // wait and query latest result
+int packQueryLatestCmdResult(unsigned char *out);                      // wait and query latest result
 //int packWriteIc(char *script, char *outData);                 // if server validate transactin result and return . the write returned data to pos
 /**/
-int getIccTag(unsigned char encrptMode, unsigned char tagType,unsigned char tagCount, char *tagList,char* out);
+int getIccTag(unsigned char encrptMode, unsigned char tagType,unsigned char tagCount,unsigned char *tagList,unsigned char* out);
 
 int getCmdId(void);
 //int get_dl_package(int cmd_id,int cmd_code, int cmd_sub_code, int delay,unsigned char* out);
 int get(char* key,unsigned char *out);
-//int resetposstatus(char *out);
+int resetposstatus(unsigned char *out);
 /**
 int getPin(char *trade_extra ,char *out );
 int getPinBlock(int encryptType, int keyIndex, int maxLen, char * typeFace, char * cardNo, char * data, int waitPinTime,int timeout,char *out );
@@ -61,7 +61,8 @@ int update_work_key(char* pik, char* pikCheck, char* trk,char* trkCheck, char* m
 int update_master_key(char* masterkey,char* masterkeyChekValue,int mkindex,char* out);
 int doUpdateIPEKOperation(char* trackksn,char* trackipek,char* trackipekCheckvalue,char* emvksn,char* emvipek,char* emvipekCheckvalue,char* pinksn,char* pinipek,char* pinipekCheckvalue,int keyIndex,char* out);
 /**/
-int setBuzzerStatus(int isBuzzer,char *out);
+int getBuzzerBlink(unsigned char buzzerTimes,unsigned char operationType,unsigned char * buzzerPeriod,unsigned char * buzzerDuty,unsigned char * out);
+int setBuzzerStatus(unsigned char isBuzzer,unsigned char *out);
 void on_char(unsigned char c);
 int on_package(unsigned char* p,int len);
 int get_response_result();
@@ -71,7 +72,7 @@ void pack_u8(char* key,unsigned char value);
 void set_tck(unsigned char * new_key);
 int testFunc();
 /**/
-int doMifare(int comCode,int timeout,char* out);
+int doMifare(int comCode,int timeout,unsigned char* out);
 void setMifareKeyClass(int keyClass );
 void setMifareBlockAddr(int addr );
 void setMifareOperation(int cmd );
@@ -97,11 +98,11 @@ int sendApdu(char *cmd , unsigned int len ,unsigned int timeout ,char *out );
 
 int powerOffIcc(unsigned int timeout ,char *out );
 
-int powerOnNFC(char encrptMode,unsigned int timeout ,char *out );
+int powerOnNFC(char encrptMode,unsigned int timeout ,unsigned char *out );
 
-int sendApduByNFC(char *cmd , unsigned int len ,unsigned int timeout ,char *out );
+int sendApduByNFC(unsigned char *cmd , unsigned int len ,unsigned int timeout ,unsigned char *out );
 
-int powerOffNFC(unsigned int timeout ,char *out );
+int powerOffNFC(unsigned int timeout ,unsigned char *out );
 
 //int setMerchantId(char* MerchantId, char* out);
 
