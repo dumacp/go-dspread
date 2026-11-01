@@ -1,6 +1,7 @@
 package cr100
 
 import (
+	"context"
 	"io"
 	"time"
 
@@ -23,4 +24,8 @@ func (d *Device) Transmit(in []byte, timeout time.Duration) ([]byte, error) {
 
 func (d *Device) Close() error {
 	return d.dev.Close()
+}
+
+func (d *Device) TransmitContext(ctx context.Context, in []byte, timeout time.Duration) ([]byte, error) {
+	return d.dev.TransmitContext(ctx, in, timeout)
 }

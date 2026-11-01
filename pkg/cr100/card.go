@@ -37,42 +37,49 @@ func (c *Card) Apdu(apdu []byte) ([]byte, error) {
 
 	t1 := time.Now()
 
-	if _, err := c.reader.dev.Transmit(cmd, APDUSerialTimeout); err != nil {
-		return nil, fmt.Errorf("error transmitting: %w", err)
-	}
-
-	cmdid := func() int {
-		c, err := cgo.GetCmdId()
-		if err != nil {
-			log.Printf("error reading from nfc GetCmdId: %v", err)
-			return -1
+	if c.reader.readRecovery && recoveryReadCommand(apdu) {
+		if err := c.reader.exchangeRead(cmd, false); err != nil {
+			return nil, err
 		}
-		fmt.Printf("function cmdid: 0x%X\n", c)
-		return c
-	}
-
-	for {
-		if cod := cmdid(); cod == cgo.CMD_BUSY || cod == cgo.CMD_CONTINUE {
-			fmt.Printf("while cmdid: 0x%X\n", cod)
-			if out, err := cgo.PackQueryLatestCmdResult(); err != nil {
-				return nil, fmt.Errorf("error packing query cmdid: %w", err)
-			} else {
-				fmt.Printf("out: [% 02X]\n", out)
-				if _, err := c.reader.dev.Transmit(out, 300*time.Millisecond); err != nil {
-					return nil, fmt.Errorf("error querying latest cmd result: %w", err)
-				}
-			}
-		} else {
-			break
-		}
-	}
-
-	if c := cmdid(); c == 0 || c == cgo.CMD_CANCEL || c == cgo.CMD_TIMEOUT {
-		// log.Printf("cmdid: 0x%X\n", c)
-		// return
-		return nil, fmt.Errorf("error cmdid: 0x%X", c)
 	} else {
-		log.Printf("prog 1 cmdid: 0x%X\n", c)
+		if _, err := c.reader.dev.Transmit(cmd, APDUSerialTimeout); err != nil {
+			return nil, c.reader.readExchangeError(apdu, fmt.Errorf("error transmitting: %w", err))
+		}
+
+		cmdid := func() int {
+			c, err := cgo.GetCmdId()
+			if err != nil {
+				log.Printf("error reading from nfc GetCmdId: %v", err)
+				return -1
+			}
+			fmt.Printf("function cmdid: 0x%X\n", c)
+			return c
+		}
+
+		for {
+			if cod := cmdid(); cod == cgo.CMD_BUSY || cod == cgo.CMD_CONTINUE {
+				fmt.Printf("while cmdid: 0x%X\n", cod)
+				if out, err := cgo.PackQueryLatestCmdResult(); err != nil {
+					return nil, fmt.Errorf("error packing query cmdid: %w", err)
+				} else {
+					fmt.Printf("out: [% 02X]\n", out)
+					if _, err := c.reader.dev.Transmit(out, 300*time.Millisecond); err != nil {
+						return nil, c.reader.readExchangeError(apdu, fmt.Errorf("error querying latest cmd result: %w", err))
+					}
+				}
+			} else {
+				break
+			}
+		}
+
+		if status := cmdid(); status == 0 || status == cgo.CMD_CANCEL || status == cgo.CMD_TIMEOUT {
+			// log.Printf("cmdid: 0x%X\n", c)
+			// return
+			return nil, c.reader.readExchangeError(apdu, fmt.Errorf("error cmdid: 0x%X", status))
+		} else {
+			log.Printf("prog 1 cmdid: 0x%X\n", status)
+		}
+
 	}
 
 	fmt.Printf("/////////////// time apdu: %v\n", time.Since(t1).Milliseconds())
@@ -101,6 +108,9 @@ func (c *Card) Apdu(apdu []byte) ([]byte, error) {
 		return nil, fmt.Errorf("error reading from nfc: %w", err)
 	}
 
+	if c.reader.readRecovery && recoveryReadCommand(apdu) && len(dataApduEncrypt) == 0 {
+		return nil, &RetryableReadError{Err: ErrEmptyAPDU}
+	}
 	log.Printf("Data dataApduEncrypt: %X\n", dataApduEncrypt)
 
 	return dataApduEncrypt, nil

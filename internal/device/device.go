@@ -20,6 +20,15 @@ func NewDevice(rw io.ReadWriteCloser) *Device {
 }
 
 func (d *Device) Transmit(in []byte, timeout time.Duration) ([]byte, error) {
+	return d.TransmitContext(context.Background(), in, timeout)
+}
+
+// TransmitContext requires a finite serial ReadTimeout to bound cancellation
+// latency. It does not close the port or send any command on cancellation.
+func (d *Device) TransmitContext(parent context.Context, in []byte, timeout time.Duration) ([]byte, error) {
+	if err := parent.Err(); err != nil {
+		return nil, err
+	}
 
 	res := make([]byte, 0)
 	buff := make([]byte, 1024)
@@ -35,7 +44,7 @@ func (d *Device) Transmit(in []byte, timeout time.Duration) ([]byte, error) {
 	tick := time.NewTicker(20 * time.Millisecond)
 	defer tick.Stop()
 
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	ctx, cancel := context.WithTimeout(parent, timeout)
 	defer cancel()
 
 	funcRead := func() ([]byte, error) {
@@ -56,6 +65,9 @@ func (d *Device) Transmit(in []byte, timeout time.Duration) ([]byte, error) {
 			default:
 				return nil, fmt.Errorf("error reading from serial port: %w", err)
 			}
+		}
+		if err := parent.Err(); err != nil {
+			return nil, err
 		}
 		chunk := buff[0:n]
 		res = append(res, chunk...)
@@ -79,6 +91,9 @@ func (d *Device) Transmit(in []byte, timeout time.Duration) ([]byte, error) {
 	}
 
 	for {
+		if err := parent.Err(); err != nil {
+			return nil, err
+		}
 
 		select {
 		case <-tick0.C:
@@ -98,6 +113,9 @@ func (d *Device) Transmit(in []byte, timeout time.Duration) ([]byte, error) {
 				return out, nil
 			}
 		case <-ctx.Done():
+			if err := parent.Err(); err != nil {
+				return nil, err
+			}
 			return nil, fmt.Errorf("error on transmit, context done")
 		}
 	}

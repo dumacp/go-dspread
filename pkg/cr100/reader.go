@@ -1,6 +1,7 @@
 package cr100
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"time"
@@ -11,7 +12,9 @@ import (
 
 type Reader struct {
 	smartcard.IReader
-	dev *Device
+	dev              *Device
+	readRecovery     bool
+	detectionContext context.Context
 }
 
 var UsePowerOnNFCConnect bool
@@ -40,8 +43,15 @@ func (r *Reader) ConnectCard() (smartcard.ICard, error) {
 			return nil, fmt.Errorf("error packing power on nfc: %w", err)
 		}
 
-		if _, err := r.dev.Transmit(poll, PowerOnNFCSerialTimeout); err != nil {
-			return nil, fmt.Errorf("error transmitting power on nfc: %w", err)
+		if r.readRecovery {
+			if err := r.exchangeRead(poll, true); err != nil {
+				return nil, fmt.Errorf("CR100 NFC activation: %w", err)
+			}
+		} else {
+			if _, err := r.dev.Transmit(poll, PowerOnNFCSerialTimeout); err != nil {
+				return nil, fmt.Errorf("error transmitting power on nfc: %w", err)
+			}
+
 		}
 
 		atr, _ := cgo.Get("Atr")
@@ -60,59 +70,69 @@ func (r *Reader) ConnectCard() (smartcard.ICard, error) {
 		return nil, fmt.Errorf("error doing mifare poll: %w", err)
 	}
 
-	// ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond*100)
-	// defer cancel()
-	if _, err := r.dev.Transmit(poll, 3000*time.Millisecond); err != nil {
-		fmt.Printf("error transmiting poll: %s\n", err)
-	}
-
-	cmdid := func() int {
-		c, err := cgo.GetCmdId()
-		if err != nil {
-			log.Printf("error reading from nfc GetCmdId: %v", err)
-			return -1
+	if r.readRecovery {
+		if err := r.exchangeRead(poll, true); err != nil {
+			return nil, fmt.Errorf("CR100 detection: %w", err)
 		}
-		fmt.Printf("function cmdid: 0x%X\n", c)
-		return c
-	}
+	} else {
+		// ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond*100)
+		// defer cancel()
+		if _, err := r.dev.Transmit(poll, 3000*time.Millisecond); err != nil {
+			fmt.Printf("error transmiting poll: %s\n", err)
+		}
 
-	// while (getCmdId()==0x00) {
-
-	// 	transmit(0x00,1);
-	// 	sleep(1);
-	//   }
-	errorCounter := 0
-	for cmdid() == 0x00 {
-		if _, err := r.dev.Transmit([]byte{0x00}, 3000*time.Millisecond); err != nil {
-			if errorCounter > 30 {
-				return nil, fmt.Errorf("error transmiting poll: %w", err)
-			} else {
-				fmt.Printf("error transmiting poll: %s\n", err)
+		cmdid := func() int {
+			c, err := cgo.GetCmdId()
+			if err != nil {
+				log.Printf("error reading from nfc GetCmdId: %v", err)
+				return -1
 			}
-			errorCounter++
+			fmt.Printf("function cmdid: 0x%X\n", c)
+			return c
 		}
-		// time.Sleep(10 * time.Millisecond)
+
+		// while (getCmdId()==0x00) {
+
+		// 	transmit(0x00,1);
+		// 	sleep(1);
+		//   }
+		errorCounter := 0
+		for cmdid() == 0x00 {
+			if _, err := r.dev.Transmit([]byte{0x00}, 3000*time.Millisecond); err != nil {
+				if errorCounter > 30 {
+					return nil, fmt.Errorf("error transmiting poll: %w", err)
+				} else {
+					fmt.Printf("error transmiting poll: %s\n", err)
+				}
+				errorCounter++
+			}
+			// time.Sleep(10 * time.Millisecond)
+		}
+
+		// log.Printf("mifare SAK: %X\n", func() []byte {
+
+		// 	s, _ := cgo.Get("mifare_SAK")
+		// 	return s
+		// }())
+		// log.Printf("mifare carUid: %X\n", func() []byte {
+
+		// 	s, _ := cgo.Get("mifare_cardUid")
+		// 	return s
+		// }())
+		// log.Printf("mifare ATR: %X\n", func() []byte {
+
+		// 	s, _ := cgo.Get("mifare_ATQA")
+		// 	return s
+		// }())
+
 	}
-
-	// log.Printf("mifare SAK: %X\n", func() []byte {
-
-	// 	s, _ := cgo.Get("mifare_SAK")
-	// 	return s
-	// }())
-	// log.Printf("mifare carUid: %X\n", func() []byte {
-
-	// 	s, _ := cgo.Get("mifare_cardUid")
-	// 	return s
-	// }())
-	// log.Printf("mifare ATR: %X\n", func() []byte {
-
-	// 	s, _ := cgo.Get("mifare_ATQA")
-	// 	return s
-	// }())
 
 	sUid, err := cgo.Get("mifare_cardUid")
 	if err != nil {
 		return nil, fmt.Errorf("error reading cardUid: %w", err)
+	}
+	if r.readRecovery && len(sUid) == 0 {
+		return nil, smartcard.ErrNoSmartcard
 	}
 	fmt.Printf("mifare carUid: %X\n", sUid)
 	uid := make([]byte, len(sUid))
@@ -180,3 +200,8 @@ func (r *Reader) ConnectSamCard_T0() (smartcard.ICard, error) {
 func (r *Reader) ConnectSamCard_Tany() (smartcard.ICard, error) {
 	panic("not implemented") // TODO: Implement
 }
+
+// SetDetectionContext must be called before the reader is used by an actor.
+// Cancellation affects polling only; APDU reads, writes and commits keep their
+// own completion and reconciliation behavior.
+func (r *Reader) SetDetectionContext(ctx context.Context) { r.detectionContext = ctx }
