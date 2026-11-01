@@ -10,7 +10,7 @@ import (
 
 	"github.com/dumacp/go-dspread/internal/cgo"
 	"github.com/dumacp/go-dspread/pkg/cr100"
-	"github.com/dumacp/smartCard/nxp/mifare/desfire/ev2"
+	"github.com/dumacp/smartcard/nxp/mifare/desfire/ev2"
 	"github.com/tarm/serial"
 )
 

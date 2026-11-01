@@ -66,6 +66,7 @@ int setBuzzerStatus(unsigned char isBuzzer,unsigned char *out);
 void on_char(unsigned char c);
 int on_package(unsigned char* p,int len);
 int get_response_result();
+int is_package_receive_complete();
 void pack_string(char* key,unsigned char* value,int len);
 void pack_u8(char* key,unsigned char value);
 /**

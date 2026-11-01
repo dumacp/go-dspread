@@ -19,14 +19,15 @@ type Card struct {
 	reader *Reader
 }
 
+var APDUCommandTimeoutValue uint = 300
+var APDUSerialTimeout = 300 * time.Millisecond
+
 // Apdu send apdu to card
 func (c *Card) Apdu(apdu []byte) ([]byte, error) {
 
 	fmt.Printf("APDU: %02X\n", apdu)
 
-	timeout := 300 * time.Millisecond
-
-	cmd, err := cgo.SendAPUContactless(apdu, timeout)
+	cmd, err := cgo.SendAPUContactlessWithTimeoutValue(apdu, APDUCommandTimeoutValue)
 	if err != nil {
 		return nil, fmt.Errorf("error sending apdu: %w", err)
 	}
@@ -36,7 +37,7 @@ func (c *Card) Apdu(apdu []byte) ([]byte, error) {
 
 	t1 := time.Now()
 
-	if _, err := c.reader.dev.Transmit(cmd, 300*time.Millisecond); err != nil {
+	if _, err := c.reader.dev.Transmit(cmd, APDUSerialTimeout); err != nil {
 		return nil, fmt.Errorf("error transmitting: %w", err)
 	}
 
@@ -52,12 +53,14 @@ func (c *Card) Apdu(apdu []byte) ([]byte, error) {
 
 	for {
 		if cod := cmdid(); cod == cgo.CMD_BUSY || cod == cgo.CMD_CONTINUE {
-			fmt.Printf("while cmdid: 0x%X\n", c)
+			fmt.Printf("while cmdid: 0x%X\n", cod)
 			if out, err := cgo.PackQueryLatestCmdResult(); err != nil {
 				return nil, fmt.Errorf("error packing query cmdid: %w", err)
 			} else {
 				fmt.Printf("out: [% 02X]\n", out)
-				c.reader.dev.Transmit(out, 3*time.Millisecond)
+				if _, err := c.reader.dev.Transmit(out, 300*time.Millisecond); err != nil {
+					return nil, fmt.Errorf("error querying latest cmd result: %w", err)
+				}
 			}
 		} else {
 			break
@@ -73,23 +76,23 @@ func (c *Card) Apdu(apdu []byte) ([]byte, error) {
 	}
 
 	fmt.Printf("/////////////// time apdu: %v\n", time.Since(t1).Milliseconds())
-	dataLen, err := cgo.Get("ApduLen")
-	if err != nil {
-		// log.Printf("error reading from nfc: %v", err)
-		// return
-		return nil, fmt.Errorf("error reading from nfc: %w", err)
-	}
+	// dataLen, err := cgo.Get("ApduLen")
+	// if err != nil {
+	// 	// log.Printf("error reading from nfc: %v", err)
+	// 	// return
+	// 	return nil, fmt.Errorf("error reading from nfc: %w", err)
+	// }
 
-	log.Printf("Data Len: %X (%d)\n", dataLen, len(dataLen))
+	// log.Printf("Data Len: %X (%d)\n", dataLen, len(dataLen))
 
-	dataApduResult, err := cgo.Get("ApduResult")
-	if err != nil {
-		// log.Printf("error reading from nfc: %v", err)
-		// return
-		return nil, fmt.Errorf("error reading from nfc: %w", err)
-	}
+	// dataApduResult, err := cgo.Get("ApduResult")
+	// if err != nil {
+	// 	// log.Printf("error reading from nfc: %v", err)
+	// 	// return
+	// 	return nil, fmt.Errorf("error reading from nfc: %w", err)
+	// }
 
-	log.Printf("Data dataApduResult: %X\n", dataApduResult)
+	// log.Printf("Data dataApduResult: %X\n", dataApduResult)
 
 	dataApduEncrypt, err := cgo.Get("ApduEncrpt")
 	if err != nil {

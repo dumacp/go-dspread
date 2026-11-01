@@ -57,7 +57,8 @@ func (d *Device) Transmit(in []byte, timeout time.Duration) ([]byte, error) {
 				return nil, fmt.Errorf("error reading from serial port: %w", err)
 			}
 		}
-		res = append(res, buff[0:n]...)
+		chunk := buff[0:n]
+		res = append(res, chunk...)
 		// for {
 		// 	n3, err := s.Read(buff)
 		// 	if err != nil {
@@ -70,7 +71,7 @@ func (d *Device) Transmit(in []byte, timeout time.Duration) ([]byte, error) {
 
 		t1 := time.Now()
 
-		if _, err := cgo.OnPackage(res); err != nil {
+		if _, err := cgo.OnPackage(chunk); err != nil {
 			return nil, fmt.Errorf("error on package: %v", err)
 		}
 		fmt.Printf("time onpackage: %v\n", time.Since(t1).Milliseconds())
@@ -84,7 +85,7 @@ func (d *Device) Transmit(in []byte, timeout time.Duration) ([]byte, error) {
 			if out, err := funcRead(); err != nil {
 				fmt.Printf("error on transmit: %v\n", err)
 				return nil, err
-			} else if len(out) > 0 {
+			} else if len(out) > 0 && cgo.IsPackageReceiveComplete() {
 				fmt.Printf("response transmit: %X\n", out)
 				return out, nil
 			}
@@ -92,7 +93,7 @@ func (d *Device) Transmit(in []byte, timeout time.Duration) ([]byte, error) {
 			if out, err := funcRead(); err != nil {
 				fmt.Printf("error on transmit: %v\n", err)
 				return nil, err
-			} else if len(out) > 0 {
+			} else if len(out) > 0 && cgo.IsPackageReceiveComplete() {
 				fmt.Printf("response transmit: %X\n", out)
 				return out, nil
 			}

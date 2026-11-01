@@ -39,6 +39,10 @@ func MyItoA(num int, base int) string {
 }
 
 func SendAPUContactless(cmd []byte, timeout time.Duration) ([]byte, error) {
+	return SendAPUContactlessWithTimeoutValue(cmd, uint(timeout.Milliseconds()))
+}
+
+func SendAPUContactlessWithTimeoutValue(cmd []byte, timeout uint) ([]byte, error) {
 
 	var cData *C.uchar
 	var dataLen C.uint
@@ -51,7 +55,7 @@ func SendAPUContactless(cmd []byte, timeout time.Duration) ([]byte, error) {
 	var response [1024]C.uchar
 	// var responseLen C.int = 0
 
-	ret := C.sendApduByNFC(cData, dataLen, C.uint(timeout.Milliseconds()), &response[0])
+	ret := C.sendApduByNFC(cData, dataLen, C.uint(timeout), &response[0])
 
 	if ret < 0 {
 		return nil, fmt.Errorf("sendAdpuByNFC failed, ret=%d", ret)
@@ -117,7 +121,7 @@ func Get(key string) ([]byte, error) {
 	if ret < 0 {
 		return nil, fmt.Errorf("Get failed, ret=%d", ret)
 	}
-	fmt.Printf("response: %X\n", response)
+	// fmt.Printf("response: %X\n", response)
 	return C.GoBytes(unsafe.Pointer(&response[0]), ret), nil
 }
 
@@ -151,12 +155,15 @@ func GetCmdId() (int, error) {
 
 // int on_package(unsigned char* p,int len);
 func OnPackage(p []byte) (int, error) {
-	C.on_package((*C.uchar)(&p[0]), C.int(len(p)))
-	//	if ret < 0 {
-	//		return 0, fmt.Errorf("OnPackage failed, ret=%d", ret)
-	//	}
-	//	return int(ret), nil
-	return 0, nil
+	ret := C.on_package((*C.uchar)(&p[0]), C.int(len(p)))
+	if ret < 0 {
+		return 0, fmt.Errorf("OnPackage failed, ret=%d", ret)
+	}
+	return int(ret), nil
+}
+
+func IsPackageReceiveComplete() bool {
+	return C.is_package_receive_complete() != 0
 }
 
 //	enum DEVICE_CMD_RESULT{

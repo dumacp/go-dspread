@@ -14,10 +14,18 @@ type Reader struct {
 	dev *Device
 }
 
+var UsePowerOnNFCConnect bool
+var PowerOnNFCCommandTimeoutValue uint = 60
+var PowerOnNFCSerialTimeout = 3 * time.Second
+
 func NewReaderWithDevice(dev *Device) *Reader {
 	return &Reader{
 		dev: dev,
 	}
+}
+
+func (r *Reader) Close() error {
+	return r.dev.Close()
 }
 
 func (r *Reader) Name() string {
@@ -26,6 +34,27 @@ func (r *Reader) Name() string {
 
 // ConnectCard connect card with protocol T=1
 func (r *Reader) ConnectCard() (smartcard.ICard, error) {
+	if UsePowerOnNFCConnect {
+		poll, err := cgo.PowerOnContactless(time.Duration(PowerOnNFCCommandTimeoutValue) * time.Millisecond)
+		if err != nil {
+			return nil, fmt.Errorf("error packing power on nfc: %w", err)
+		}
+
+		if _, err := r.dev.Transmit(poll, PowerOnNFCSerialTimeout); err != nil {
+			return nil, fmt.Errorf("error transmitting power on nfc: %w", err)
+		}
+
+		atr, _ := cgo.Get("Atr")
+		return &Card{
+			reader: r,
+			uid:    make([]byte, 0),
+			sak:    0x20,
+			atr:    atr,
+			ats:    atr,
+			code:   0,
+		}, nil
+	}
+
 	poll, err := cgo.DoMifare(0x01, time.Millisecond*20)
 	if err != nil {
 		return nil, fmt.Errorf("error doing mifare poll: %w", err)
@@ -33,7 +62,7 @@ func (r *Reader) ConnectCard() (smartcard.ICard, error) {
 
 	// ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond*100)
 	// defer cancel()
-	if _, err := r.dev.Transmit(poll, 1000*time.Millisecond); err != nil {
+	if _, err := r.dev.Transmit(poll, 3000*time.Millisecond); err != nil {
 		fmt.Printf("error transmiting poll: %s\n", err)
 	}
 
@@ -54,7 +83,7 @@ func (r *Reader) ConnectCard() (smartcard.ICard, error) {
 	//   }
 	errorCounter := 0
 	for cmdid() == 0x00 {
-		if _, err := r.dev.Transmit([]byte{0x00}, 1000*time.Millisecond); err != nil {
+		if _, err := r.dev.Transmit([]byte{0x00}, 3000*time.Millisecond); err != nil {
 			if errorCounter > 30 {
 				return nil, fmt.Errorf("error transmiting poll: %w", err)
 			} else {
