@@ -1,0 +1,14 @@
+.DS_Store
+._*
+.env
+.env.*
+!.env.example
+.vscode/
+/go-dspread.code-workspace
+*.log
+*.log.*
+/testApduDesfire
+/testapdu
+/cmd/testapduDesfirewithsam/testapdu
+/repro/dspread_apdu_repro
+/repro/*.o
