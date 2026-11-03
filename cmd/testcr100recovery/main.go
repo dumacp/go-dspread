@@ -29,6 +29,8 @@ type config struct {
 	baud, samEntry, cardKey int
 	duration, pause, settle time.Duration
 	list, selectOnly        bool
+	resetBefore             string
+	bounded                 bool
 }
 
 // Reject every command except application select, EV2 authentication and ReadData.
@@ -208,7 +210,12 @@ func run() error {
 	flag.DurationVar(&c.settle, "settle", 0, "optional pause after UID detection, before select")
 	flag.BoolVar(&c.list, "list-readers", false, "list PC/SC readers and exit without opening serial or authenticating")
 	flag.BoolVar(&c.selectOnly, "select-only", false, "detect and select application only; no SAM access or file reads")
+	flag.StringVar(&c.resetBefore, "reset-before", "none", "one reader recovery before trials: none, powercycle, posreset, mifarehalt")
+	flag.BoolVar(&c.bounded, "bounded", true, "use cancelable read recovery for detection and APDU exchanges")
 	flag.Parse()
+	if c.resetBefore != "none" && c.resetBefore != "powercycle" && c.resetBefore != "posreset" && c.resetBefore != "mifarehalt" {
+		return errors.New("invalid reset-before mode")
+	}
 	if c.recovery != "none" && c.recovery != "poweroff" {
 		return errors.New("invalid recovery mode")
 	}
@@ -263,6 +270,15 @@ func run() error {
 	defer stop()
 	ctx, cancel := context.WithTimeout(stopCtx, c.duration)
 	defer cancel()
+	if c.bounded {
+		reader.EnableReadRecovery()
+		reader.SetDetectionContext(ctx)
+	}
+	if c.resetBefore != "none" {
+		if err := resetBeforeTrial(dev, c.resetBefore); err != nil {
+			log.Printf("PROBE_RESET_ERROR mode=%s err=%v", c.resetBefore, err)
+		}
+	}
 	log.Printf("PROBE_START read_only=true select_only=%t recovery=%s card_key=%d sam_entry=%d settle=%s duration=%s", c.selectOnly, c.recovery, c.cardKey, c.samEntry, c.settle, c.duration)
 	enc := json.NewEncoder(os.Stderr)
 	attempts, success := 0, 0
@@ -328,4 +344,38 @@ func main() {
 		log.Print(err)
 		os.Exit(1)
 	}
+}
+
+// Reader control commands only. No card mutation commands are accepted here.
+func resetBeforeTrial(dev *cr100.Device, mode string) error {
+	exchange := func(label string, pack func() ([]byte, error), timeout time.Duration) error {
+		cmd, err := pack()
+		if err != nil {
+			return err
+		}
+		_, err = dev.Transmit(cmd, timeout)
+		status := -1
+		if err == nil {
+			status, err = sdk.GetCmdId()
+			// ResetPosStatus acknowledges with command 0x20 (observed frame
+			// 4D0001206C), unlike the 0x24 result of NFC commands.
+			if err == nil && status != sdk.CMD_SUC && !(mode == "posreset" && status == 0x20) {
+				err = fmt.Errorf("terminal status %02X", status)
+			}
+		}
+		log.Printf("PROBE_RESET_STEP mode=%s step=%s status=%02X err=%v", mode, label, status, err)
+		return err
+	}
+	switch mode {
+	case "powercycle":
+		offErr := exchange("nfc_off", func() ([]byte, error) { return sdk.PowerOffContactless(time.Second) }, time.Second)
+		time.Sleep(200 * time.Millisecond)
+		onErr := exchange("nfc_on", func() ([]byte, error) { return sdk.PowerOnContactless(time.Second) }, 3*time.Second)
+		return errors.Join(offErr, onErr)
+	case "posreset":
+		return exchange("reset_pos_status", sdk.ResetPosStatus, 2*time.Second)
+	case "mifarehalt":
+		return exchange("mifare_halt", func() ([]byte, error) { return sdk.DoMifare(0x0e, time.Millisecond*10) }, time.Second)
+	}
+	return errors.New("unsupported reset")
 }
